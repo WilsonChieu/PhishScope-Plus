@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhishScope+ | Admin Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:         #0a0e1a;
+      --surface:    #111827;
+      --surface2:   #1f2937;
+      --border:     #374151;
+      --text:       #f9fafb;
+      --text2:      #9ca3af;
+      --text3:      #6b7280;
+      --high:       #ef4444;
+      --high-bg:    rgba(239,68,68,.12);
+      --medium:     #f59e0b;
+      --medium-bg:  rgba(245,158,11,.12);
+      --low:        #22c55e;
+      --low-bg:     rgba(34,197,94,.12);
+      --intel:      #8b5cf6;
+      --intel-bg:   rgba(139,92,246,.12);
+      --blue:       #3b82f6;
+      --orange:     #f97316;
+      --orange-bg:  rgba(249,115,22,.12);
+    }
+
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Navbar ─────────────────────────────────────────────── */
+    .navbar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 28px; height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; }
+    .nav-brand .accent { color: var(--blue); }
+    .nav-right  { display: flex; align-items: center; gap: 16px; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text2);
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--text3);
+      transition: background .3s;
+    }
+    .dot.ok  { background: var(--low);  box-shadow: 0 0 6px var(--low); }
+    .dot.err { background: var(--high); box-shadow: 0 0 6px var(--high); }
+
+    .timestamp { font-size: 12px; color: var(--text3); }
+
+    .btn {
+      padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); font-size: 13px;
+      cursor: pointer; transition: background .15s, border-color .15s;
+    }
+    .btn:hover       { background: var(--border); }
+    .btn.primary     { background: var(--blue); border-color: var(--blue); }
+    .btn.primary:hover { background: #2563eb; border-color: #2563eb; }
+    .btn.danger      { color: var(--high); border-color: var(--high); background: var(--high-bg); }
+    .btn.danger:hover{ background: var(--high); color: #fff; }
+    .btn:disabled    { opacity: .4; cursor: not-allowed; }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .main { padding: 24px 28px; max-width: 1440px; margin: 0 auto; }
+
+    .section-label {
+      font-size: 11px; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px;
+    }
+
+    /* ── Stats grid ─────────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px; margin-bottom: 28px;
+    }
+    @media (max-width: 1100px) { .stats-grid { grid-template-columns: repeat(3,1fr); } }
+    @media (max-width:  640px) { .stats-grid { grid-template-columns: repeat(2,1fr); } }
+
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 20px;
+      transition: border-color .2s;
+    }
+    .stat-label  { font-size: 11px; font-weight: 600; color: var(--text2); margin-bottom: 10px; }
+    .stat-value  { font-size: 34px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+    .stat-sub    { font-size: 11px; color: var(--text3); }
+
+    /* ── Charts ─────────────────────────────────────────────── */
+    .charts-grid {
+      display: grid; grid-template-columns: 300px 1fr;
+      gap: 14px; margin-bottom: 28px;
+    }
+    @media (max-width: 860px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 16px; color: var(--text2); }
+    .chart-wrap  { position: relative; height: 230px; }
+
+    /* ── Filters ─────────────────────────────────────────────── */
+    .filters-row {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      align-items: center; margin-bottom: 12px;
+    }
+    .search-input {
+      flex: 1; min-width: 200px; padding: 8px 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: 13px; outline: none;
+    }
+    .search-input:focus { border-color: var(--blue); }
+    .filter-select {
+      padding: 8px 12px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-size: 13px; outline: none; cursor: pointer;
+    }
+
+    /* ── Table card ──────────────────────────────────────────── */
+    .table-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; margin-bottom: 24px;
+    }
+    .table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: var(--surface2); }
+    th {
+      padding: 11px 14px; text-align: left; color: var(--text2);
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; white-space: nowrap;
+      cursor: pointer; user-select: none;
+    }
+    th:hover { color: var(--text); }
+    td { padding: 10px 14px; border-top: 1px solid var(--border); vertical-align: middle; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+
+    /* Risk badge */
+    .badge {
+      display: inline-block; padding: 3px 9px; border-radius: 4px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .badge.high   { background: var(--high-bg);   color: var(--high);   border: 1px solid var(--high); }
+    .badge.medium { background: var(--medium-bg); color: var(--medium); border: 1px solid var(--medium); }
+    .badge.low    { background: var(--low-bg);    color: var(--low);    border: 1px solid var(--low); }
+
+    /* Score bar */
+    .score-wrap { display: flex; align-items: center; gap: 8px; }
+    .score-num  { font-weight: 700; font-size: 13px; min-width: 26px; text-align: right; }
+    .bar-track  { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; min-width: 48px; }
+    .bar-fill   { height: 100%; border-radius: 2px; transition: width .3s; }
+
+    /* Factor tags */
+    .tags       { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag {
+      padding: 2px 7px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 3px;
+      font-size: 10px; color: var(--text2); white-space: nowrap;
+    }
+    .tag.threat { background: var(--intel-bg); border-color: var(--intel); color: var(--intel); font-weight: 600; }
+    .tag.more   { color: var(--text3); border-style: dashed; }
+
+    /* URL cell */
+    .url-wrap  { max-width: 220px; }
+    .url-text  {
+      display: block; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: var(--blue);
+      font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 11px;
+    }
+    .domain-text { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    /* Misc cells */
+    .center     { text-align: center; }
+    .time-text  { font-size: 12px; color: var(--text2); white-space: nowrap; }
+
+    .del-btn {
+      padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;
+      background: transparent; color: var(--text3); cursor: pointer;
+      font-size: 12px; transition: all .15s;
+    }
+    .del-btn:hover { border-color: var(--high); color: var(--high); background: var(--high-bg); }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 56px 20px; color: var(--text3); }
+    .empty .icon { font-size: 36px; margin-bottom: 10px; }
+    .empty p     { font-size: 13px; }
+
+    /* Pagination */
+    .pagination {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--text2);
+    }
+    .page-btns { display: flex; gap: 6px; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      padding: 11px 18px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; z-index: 9999;
+      opacity: 0; transform: translateY(8px);
+      transition: all .2s; pointer-events: none;
+    }
+    .toast.show    { opacity: 1; transform: none; }
+    .toast.success { border-color: var(--low);  color: var(--low); }
+    .toast.error   { border-color: var(--high); color: var(--high); }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ───────────────────────────────────────────────── -->
+<nav class="navbar">
+  <div class="nav-brand">
+    🛡&nbsp;<span class="accent">PhishScope+</span>&nbsp;Admin Dashboard
+  </div>
+  <div class="nav-right">
+    <div class="status-pill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Connecting…</span>
+    </div>
+    <span class="timestamp" id="lastUpdated"></span>
+    <button class="btn primary" onclick="loadData()">↻&nbsp;Refresh</button>
+  </div>
+</nav>
+
+<!-- ── Main ─────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Stats -->
+  <div class="section-label">Overview</div>
+  <div class="stats-grid">
+
+    <div class="stat-card">
+      <div class="stat-label">Total Scans</div>
+      <div class="stat-value" id="sTotal" style="color:var(--blue)">—</div>
+      <div class="stat-sub">up to 500 records</div>
+    </div>
+
+    <div class="stat-card" style="border-color:var(--high)">
+      <div class="stat-label" style="color:var(--high)">🔴&nbsp;High Risk</div>
+      <div class="stat-value" id="sHigh" style="color:var(--high)">—</div>
+      <div class="stat-sub" id="sHighPct"></div>
+    </div>
+
+    <div class="stat-card" style="border-color:var(--medium)">
+      <div class="stat-label" style="color:var(--medium)">🟡&nbsp;Medium Risk</div>
+      <div class="stat-value" id="sMedium" style="color:var(--medium)">—</div>
+      <div class="stat-sub" id="sMediumPct"></div>
+    </div>
+
+    <div class="stat-card" style="border-color:var(--low)">
+      <div class="stat-label" style="color:var(--low)">🟢&nbsp;Low Risk</div>
+      <div class="stat-value" id="sLow" style="color:var(--low)">—</div>
+      <div class="stat-sub" id="sLowPct"></div>
+    </div>
+
+    <div class="stat-card" style="border-color:var(--intel)">
+      <div class="stat-label" style="color:var(--intel)">⚠&nbsp;Threat Intel Hits</div>
+      <div class="stat-value" id="sIntel" style="color:var(--intel)">—</div>
+      <div class="stat-sub">confirmed by Safe Browsing</div>
+    </div>
+
+    <div class="stat-card" style="border-color:var(--orange)">
+      <div class="stat-label" style="color:var(--orange)">🔑&nbsp;Credential Harvesting</div>
+      <div class="stat-value" id="sPwd" style="color:var(--orange)">—</div>
+      <div class="stat-sub">pages with password field</div>
+    </div>
+
+  </div>
+
+  <!-- Charts -->
+  <div class="section-label">Analytics</div>
+  <div class="charts-grid">
+
+    <div class="chart-card">
+      <div class="chart-title">Risk Level Distribution</div>
+      <div class="chart-wrap"><canvas id="riskChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Top Triggered Detection Factors</div>
+      <div class="chart-wrap"><canvas id="factorsChart"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- Table -->
+  <div class="section-label">Scan History</div>
+  <div class="filters-row">
+    <input class="search-input" id="searchInput" type="text"
+           placeholder="Search URL or domain…" oninput="applyFilters()">
+    <select class="filter-select" id="levelFilter" onchange="applyFilters()">
+      <option value="">All Levels</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+    <button class="btn" onclick="exportCsv()">⬇&nbsp;Export CSV</button>
+    <button class="btn danger" onclick="confirmClearAll()">🗑&nbsp;Clear All</button>
+  </div>
+
+  <div class="table-card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortBy('url')">URL / Domain</th>
+            <th onclick="sortBy('risk_score')">Score</th>
+            <th onclick="sortBy('risk_level')">Level</th>
+            <th>Detection Factors</th>
+            <th class="center" title="Password field detected on page">🔑 Pwd</th>
+            <th class="center" title="Credit card field detected on page">💳 CC</th>
+            <th onclick="sortBy('scanned_at')">Scanned</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="8"><div class="empty"><div class="icon">⏳</div><p>Loading…</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span id="pageInfo"></span>
+      <div class="page-btns">
+        <button class="btn" id="btnPrev" onclick="changePage(-1)">‹ Prev</button>
+        <button class="btn" id="btnNext" onclick="changePage(+1)">Next ›</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API       = 'http://localhost:3000';
+  const PAGE_SIZE = 15;
+
+  let allRecords      = [];
+  let filteredRecords = [];
+  let currentPage     = 1;
+  let sortKey         = 'scanned_at';
+  let sortAsc         = false;
+  let riskChart       = null;
+  let factorsChart    = null;
+
+  const FACTOR_LABELS = {
+    ip_in_url:            'IP in URL',
+    no_https:             'No HTTPS',
+    suspicious_tld:       'Suspicious TLD',
+    brand_token_mismatch: 'Brand Mismatch',
+    homoglyph_domain:     'Homoglyph',
+    url_shortener:        'URL Shortener',
+    at_symbol:            '@ Symbol',
+    many_subdomains:      'Many Subdomains',
+    high_entropy_domain:  'High Entropy Domain',
+    suspicious_keywords:  'Phishing Keywords',
+    excessive_length:     'Excessive Length',
+    deep_path:            'Deep Path',
+    hyphen_domain:        'Hyphen Domain',
+    digits_in_domain:     'Digits in Domain',
+    threat_intel_match:   'Threat Intel Match',
+    invalid_url:          'Invalid URL',
+  };
+
+  // ── Data loading ─────────────────────────────────────────────
+  async function loadData() {
+    try {
+      const res = await fetch(`${API}/history?limit=500`);
+      if (!res.ok) throw new Error();
+      allRecords = await res.json();
+      setStatus(true);
+      document.getElementById('lastUpdated').textContent =
+        'Updated ' + new Date().toLocaleTimeString();
+      computeStats();
+      renderCharts();
+      currentPage = 1;
+      applyFilters();
+    } catch {
+      setStatus(false);
+      showToast('Cannot reach backend at localhost:3000', 'error');
+    }
+  }
+
+  function setStatus(ok) {
+    document.getElementById('statusDot').className  = 'dot ' + (ok ? 'ok' : 'err');
+    document.getElementById('statusText').textContent = ok ? 'Connected' : 'Disconnected';
+  }
+
+  // ── Stats ────────────────────────────────────────────────────
+  function computeStats() {
+    const n      = allRecords.length;
+    const high   = allRecords.filter(r => r.risk_level === 'high').length;
+    const medium = allRecords.filter(r => r.risk_level === 'medium').length;
+    const low    = allRecords.filter(r => r.risk_level === 'low').length;
+    const intel  = allRecords.filter(r => parseFactors(r).includes('threat_intel_match')).length;
+    const pwd    = allRecords.filter(r => r.has_password_field).length;
+
+    const pct = k => n ? `${Math.round(k / n * 100)}% of scans` : '—';
+
+    set('sTotal',     n);
+    set('sHigh',      high);   set('sHighPct',   pct(high));
+    set('sMedium',    medium); set('sMediumPct', pct(medium));
+    set('sLow',       low);    set('sLowPct',    pct(low));
+    set('sIntel',     intel);
+    set('sPwd',       pwd);
+  }
+
+  function set(id, v) { document.getElementById(id).textContent = v; }
+
+  // ── Charts ────────────────────────────────────────────────────
+  function renderCharts() {
+    const high   = allRecords.filter(r => r.risk_level === 'high').length;
+    const medium = allRecords.filter(r => r.risk_level === 'medium').length;
+    const low    = allRecords.filter(r => r.risk_level === 'low').length;
+
+    if (riskChart) riskChart.destroy();
+    riskChart = new Chart(document.getElementById('riskChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['High', 'Medium', 'Low'],
+        datasets: [{
+          data: [high, medium, low],
+          backgroundColor: ['#ef4444', '#f59e0b', '#22c55e'],
+          borderWidth: 0, hoverOffset: 6,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '68%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#9ca3af', padding: 14, font: { size: 12 } },
+          },
+        },
+      },
+    });
+
+    // Factor frequency
+    const counts = {};
+    for (const r of allRecords) {
+      for (const f of parseFactors(r)) counts[f] = (counts[f] ?? 0) + 1;
+    }
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+    if (factorsChart) factorsChart.destroy();
+    factorsChart = new Chart(document.getElementById('factorsChart'), {
+      type: 'bar',
+      data: {
+        labels: top.map(([k]) => FACTOR_LABELS[k] ?? k),
+        datasets: [{
+          data: top.map(([, v]) => v),
+          backgroundColor: top.map(([k]) =>
+            k === 'threat_intel_match'                          ? '#8b5cf6' :
+            ['ip_in_url','brand_token_mismatch','no_https',
+             'homoglyph_domain','url_shortener'].includes(k)   ? '#ef4444' :
+            '#3b82f6'
+          ),
+          borderRadius: 4, borderWidth: 0,
+        }],
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+          y: { grid: { display: false },   ticks: { color: '#e5e7eb', font: { size: 11 } } },
+        },
+      },
+    });
+  }
+
+  // ── Table ─────────────────────────────────────────────────────
+  function applyFilters() {
+    const q     = document.getElementById('searchInput').value.toLowerCase();
+    const level = document.getElementById('levelFilter').value;
+
+    filteredRecords = allRecords.filter(r =>
+      (!q     || r.url.toLowerCase().includes(q) || r.domain.toLowerCase().includes(q)) &&
+      (!level || r.risk_level === level)
+    );
+
+    filteredRecords.sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey];
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      return sortAsc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+
+    currentPage = 1;
+    renderTable();
+  }
+
+  function renderTable() {
+    const total = filteredRecords.length;
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = Math.min(currentPage, pages);
+    const slice = filteredRecords.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    set('pageInfo', `${total} record${total !== 1 ? 's' : ''} · Page ${currentPage} of ${pages}`);
+    document.getElementById('btnPrev').disabled = currentPage === 1;
+    document.getElementById('btnNext').disabled = currentPage === pages;
+
+    const tbody = document.getElementById('tableBody');
+    if (!slice.length) {
+      tbody.innerHTML = `<tr><td colspan="8"><div class="empty">
+        <div class="icon">🔍</div><p>No records match your filters</p>
+      </div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = slice.map(r => {
+      const factors = parseFactors(r);
+      const scoreColor =
+        r.risk_score >= 61 ? 'var(--high)'   :
+        r.risk_score >= 31 ? 'var(--medium)' : 'var(--low)';
+
+      const shown = factors.slice(0, 3);
+      const extra = factors.length - shown.length;
+      const tagHtml = shown.map(f =>
+        `<span class="tag${f === 'threat_intel_match' ? ' threat' : ''}">${FACTOR_LABELS[f] ?? f}</span>`
+      ).join('') + (extra ? `<span class="tag more">+${extra} more</span>` : '');
+
+      return `<tr>
+        <td>
+          <div class="url-wrap">
+            <span class="url-text" title="${esc(r.url)}">${esc(r.url)}</span>
+            <div class="domain-text">${esc(r.domain || '—')}</div>
+          </div>
+        </td>
+        <td>
+          <div class="score-wrap">
+            <span class="score-num" style="color:${scoreColor}">${r.risk_score}</span>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${r.risk_score}%;background:${scoreColor}"></div>
+            </div>
+          </div>
+        </td>
+        <td><span class="badge ${r.risk_level}">${r.risk_level}</span></td>
+        <td><div class="tags">${tagHtml || '<span style="color:var(--text3);font-size:11px">none</span>'}</div></td>
+        <td class="center">${r.has_password_field  ? '✓' : ''}</td>
+        <td class="center">${r.has_credit_card_field ? '✓' : ''}</td>
+        <td class="time-text" title="${new Date(r.scanned_at).toLocaleString()}">${timeAgo(r.scanned_at)}</td>
+        <td><button class="del-btn" onclick="deleteRecord(${r.id})">✕</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function sortBy(key) {
+    sortAsc = sortKey === key ? !sortAsc : false;
+    sortKey = key;
+    applyFilters();
+  }
+
+  function changePage(dir) {
+    currentPage += dir;
+    renderTable();
+  }
+
+  // ── Actions ───────────────────────────────────────────────────
+  async function deleteRecord(id) {
+    try {
+      const res = await fetch(`${API}/history/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      allRecords = allRecords.filter(r => r.id !== id);
+      computeStats(); renderCharts(); applyFilters();
+      showToast('Record deleted', 'success');
+    } catch {
+      showToast('Failed to delete record', 'error');
+    }
+  }
+
+  async function confirmClearAll() {
+    if (!confirm(`Delete all ${allRecords.length} scan records? This cannot be undone.`)) return;
+    try {
+      await fetch(`${API}/history`, { method: 'DELETE' });
+      allRecords = [];
+      computeStats(); renderCharts(); applyFilters();
+      showToast('All records cleared', 'success');
+    } catch {
+      showToast('Failed to clear records', 'error');
+    }
+  }
+
+  function exportCsv() {
+    if (!filteredRecords.length) { showToast('No records to export', 'error'); return; }
+    const headers = ['ID','URL','Domain','Risk Score','Risk Level','Factors',
+                     'Page Title','Password Field','CC Field','Summary','Scanned At'];
+    const rows = filteredRecords.map(r => [
+      r.id,
+      `"${r.url}"`,
+      r.domain,
+      r.risk_score,
+      r.risk_level,
+      `"${r.factors}"`,
+      `"${(r.page_title || '').replace(/"/g, '""')}"`,
+      r.has_password_field    ? 'Yes' : 'No',
+      r.has_credit_card_field ? 'Yes' : 'No',
+      `"${(r.summary || '').replace(/"/g, '""')}"`,
+      r.scanned_at,
+    ]);
+    const csv  = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a    = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob),
+      download: `phishscope_export_${new Date().toISOString().slice(0,10)}.csv`,
+    });
+    a.click();
+    showToast(`Exported ${filteredRecords.length} records`, 'success');
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function parseFactors(r) {
+    try { return JSON.parse(r.factors); } catch { return []; }
+  }
+
+  function timeAgo(iso) {
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1)  return 'Just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = `toast show ${type}`;
+    setTimeout(() => { t.className = 'toast'; }, 3000);
+  }
+
+  loadData();
+</script>
+</body>
+</html>

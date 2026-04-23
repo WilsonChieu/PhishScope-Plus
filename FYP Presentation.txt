@@ -1,0 +1,29 @@
+FYP Presentation:
+
+Good afternoon Sir, this is my FYP progress video for PhishScope+. The goal of this project is to build a browser extension that detects phishing URLs in real time, inspects the live page in a sandbox and warns the user before they even interact with a dangerous site. I'll walk through every major component today since this is the first time sir view the progress and explain why I made the design decisions I did and alternatives were available.
+
+------
+
+Show overall code architecture (vscode)
+
+Extension ( What does the User sees )
+Popup (React)
+Service Worker
+Warning Page (When user went into a high risk url)
+
+
+backend
+Heuristic Engine - 
+Playwright Sandbox - 
+Rule-based Summariser -
+Google Safe Browsing - 
+SQLite Database (scan_history.json)
+
+
+
+scan_history.json (current database file)
+
+Currently the database will be kept on a local JSON file as the system runs entirely on localhost and has a single user which is me developing it. The JSON file acts as a lightweight stand-in for a proper database without needing to install any database server. 
+
+The limitation here currently is it does not scale as repetition writes of data will make querying slow due to large datasets. How i would tackle this is , for real deployment I would use SQLite to manage the database since the current JSON file is already suited with SQLite format.
+

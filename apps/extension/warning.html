@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhishScope+ Warning</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 560px;
+      background: #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+    }
+
+    .banner {
+      padding: 28px 32px 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .banner.high   { background: #450a0a; border-bottom: 2px solid #dc2626; }
+    .banner.medium { background: #431407; border-bottom: 2px solid #d97706; }
+
+    .shield {
+      font-size: 40px;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .banner-text h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .banner.high   .banner-text h1 { color: #f87171; }
+    .banner.medium .banner-text h1 { color: #fbbf24; }
+
+    .banner-text p {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    .body {
+      padding: 24px 32px;
+    }
+
+    .url-box {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #64748b;
+      word-break: break-all;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .url-box strong {
+      display: block;
+      color: #94a3b8;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+    .badge.high   { background: #7f1d1d; color: #f87171; border: 1px solid #dc2626; }
+    .badge.medium { background: #431407; color: #fbbf24; border: 1px solid #d97706; }
+
+    .score-bar-wrap {
+      flex: 1;
+      background: #0f172a;
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .score-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s ease;
+    }
+    .score-bar.high   { background: #dc2626; }
+    .score-bar.medium { background: #d97706; }
+
+    .score-label {
+      font-size: 12px;
+      color: #94a3b8;
+      min-width: 44px;
+      text-align: right;
+    }
+
+    .factors-title {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .factors {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 24px;
+    }
+    .factor-tag {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #94a3b8;
+    }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-safe {
+      background: #2563eb;
+      color: #fff;
+    }
+    .btn-proceed {
+      background: transparent;
+      border: 1px solid #334155;
+      color: #64748b;
+      font-size: 12px;
+      padding: 9px 20px;
+    }
+    .btn-proceed:hover { color: #94a3b8; border-color: #475569; opacity: 1; }
+
+    .footer {
+      padding: 14px 32px;
+      border-top: 1px solid #1e293b;
+      font-size: 10px;
+      color: #334155;
+      text-align: center;
+      background: #0f172a;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="banner" id="banner">
+      <div class="shield" id="shield">&#x26D4;</div>
+      <div class="banner-text">
+        <h1 id="heading">Dangerous Site Detected</h1>
+        <p id="subheading">PhishScope+ has flagged this URL as potentially harmful. Proceeding may put your personal data at risk.</p>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="url-box">
+        <strong>Flagged URL</strong>
+        <span id="url-display"></span>
+      </div>
+
+      <div class="score-row">
+        <span class="badge" id="risk-badge">HIGH RISK</span>
+        <div class="score-bar-wrap">
+          <div class="score-bar" id="score-bar" style="width: 0%"></div>
+        </div>
+        <span class="score-label" id="score-label">0/100</span>
+      </div>
+
+      <div id="factors-section" style="display:none">
+        <div class="factors-title">Risk factors detected</div>
+        <div class="factors" id="factors-list"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-safe" id="btn-safe">Take me back to safety</button>
+        <button class="btn btn-proceed" id="btn-proceed">I understand the risk — proceed anyway</button>
+      </div>
+    </div>
+
+    <div class="footer">PhishScope+ &mdash; AI-assisted phishing detection</div>
+  </div>
+
+  <script src="warning.js"></script>
+</body>
+</html>
