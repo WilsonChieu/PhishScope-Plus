@@ -1,72 +1,65 @@
 /**
  * RiskBadge.tsx
- * Displays a colour-coded risk badge at the top of the Scanner tab.
- *
- * Shows:
- *  - A circular score ring (0–100 with coloured border)
- *  - Risk level label (LOW RISK / MEDIUM RISK / HIGH RISK)
- *  - Registered domain of the scanned URL
- *  - HTTPS / HTTP status indicator
  */
 
 import React from 'react';
 
 interface Props {
   riskLevel: 'low' | 'medium' | 'high';
-  riskScore: number;   // 0–100
-  domain: string;      // registered domain, e.g. "example.com"
+  riskScore: number;
+  domain: string;
   isHttps: boolean;
 }
 
-/** Colour palette for each risk level (background, border, text, label). */
 const COLORS = {
-  low:    { bg: '#14532d', border: '#16a34a', text: '#4ade80', label: 'LOW RISK' },
-  medium: { bg: '#713f12', border: '#d97706', text: '#fbbf24', label: 'MEDIUM RISK' },
-  high:   { bg: '#7f1d1d', border: '#dc2626', text: '#f87171', label: 'HIGH RISK' },
+  low:    { bg: '#f0fdf4', border: '#86efac', text: '#15803d', label: 'LOW RISK' },
+  medium: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309', label: 'MEDIUM RISK' },
+  high:   { bg: '#fff1f2', border: '#fda4af', text: '#be123c', label: 'HIGH RISK' },
 };
 
-/**
- * RiskBadge component.
- * Renders a horizontally-laid-out badge with a score ring on the left and
- * risk level / domain / protocol information on the right.
- */
 export const RiskBadge: React.FC<Props> = ({ riskLevel, riskScore, domain, isHttps }) => {
   const c = COLORS[riskLevel];
 
   return (
     <div style={{
       background: c.bg,
-      border: `2px solid ${c.border}`,
+      border: `1.5px solid ${c.border}`,
       borderRadius: 10,
       padding: '14px 16px',
       display: 'flex',
       alignItems: 'center',
       gap: 14,
+      marginBottom: 4,
     }}>
-      {/* Circular score ring */}
+      {/* Score ring */}
       <div style={{
-        width: 56,
-        height: 56,
-        borderRadius: '50%',
-        border: `4px solid ${c.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
+        width: 56, height: 56, borderRadius: '50%',
+        border: `3px solid ${c.border}`,
+        background: '#ffffff',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
         flexShrink: 0,
+        boxShadow: `0 0 0 3px ${c.bg}`,
       }}>
-        <span style={{ fontSize: 18, fontWeight: 700, color: c.text, lineHeight: 1 }}>{riskScore}</span>
-        <span style={{ fontSize: 9, color: c.text, opacity: 0.8 }}>/100</span>
+        <span style={{ fontSize: 18, fontWeight: 800, color: c.text, lineHeight: 1 }}>{riskScore}</span>
+        <span style={{ fontSize: 9, color: c.text, opacity: 0.7 }}>/100</span>
       </div>
 
-      {/* Risk level, domain, and protocol */}
+      {/* Info */}
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: c.text, letterSpacing: 1 }}>{c.label}</div>
-        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, wordBreak: 'break-all' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: c.text, letterSpacing: '0.06em' }}>
+          {c.label}
+        </div>
+        <div style={{ fontSize: 12, color: '#475569', marginTop: 3, wordBreak: 'break-all' }}>
           {domain || 'Unknown domain'}
         </div>
-        <div style={{ fontSize: 11, color: isHttps ? '#4ade80' : '#f87171', marginTop: 3 }}>
-          {isHttps ? '🔒 HTTPS' : '⚠️ HTTP (unencrypted)'}
+        <div style={{
+          fontSize: 11,
+          color: isHttps ? '#15803d' : '#b45309',
+          marginTop: 4,
+          fontWeight: 500,
+        }}>
+          {isHttps ? 'HTTPS — Encrypted' : 'HTTP — Unencrypted'}
         </div>
       </div>
     </div>

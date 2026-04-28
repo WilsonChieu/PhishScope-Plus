@@ -1,124 +1,67 @@
 /**
  * HistoryView.tsx
- * History tab content for the PhishScope+ popup.
- *
- * Fetches the last 50 scan records from GET /history on mount and renders
- * them as a filterable, deletable list. Each record shows the domain, risk
- * level badge, score, timestamp, and summary snippet.
- *
- * Features:
- *  - Filter buttons: ALL / HIGH / MEDIUM / LOW
- *  - Per-record delete with inline Yes / No confirmation (prevents accidental deletion)
- *  - "Clear all" with a two-step confirmation (button → confirm row)
  */
 
 import React, { useEffect, useState } from 'react';
 import type { ScanRecord } from '../../types/api';
 import { BACKEND } from '../../config';
 
-/** Colour for each risk level label. */
 const RISK_COLORS: Record<string, string> = {
-  low: '#4ade80',
-  medium: '#fbbf24',
-  high: '#f87171',
+  low:    '#15803d',
+  medium: '#b45309',
+  high:   '#be123c',
+};
+
+const RISK_BG: Record<string, string> = {
+  low:    '#f0fdf4',
+  medium: '#fffbeb',
+  high:   '#fff1f2',
+};
+
+const RISK_BORDER: Record<string, string> = {
+  low:    '#86efac',
+  medium: '#fcd34d',
+  high:   '#fda4af',
 };
 
 type RiskFilter = 'all' | 'low' | 'medium' | 'high';
 
-/**
- * HistoryView component.
- * Loads scan history from the backend on mount and provides filter and
- * delete controls. All state is local — re-opening the popup refetches.
- */
 export const HistoryView: React.FC = () => {
-  const [records, setRecords]                 = useState<ScanRecord[]>([]);
-  const [loading, setLoading]                 = useState(true);
-  const [error, setError]                     = useState('');
-
-  /** ID of the record currently being deleted (shows a spinner). */
-  const [deleting, setDeleting]               = useState<number | null>(null);
-
-  /** ID of the record awaiting inline delete confirmation (null = none). */
-  const [confirmId, setConfirmId]             = useState<number | null>(null);
-
-  /** Whether the "Clear all records?" confirmation row is visible. */
+  const [records, setRecords]               = useState<ScanRecord[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState('');
+  const [deleting, setDeleting]             = useState<number | null>(null);
+  const [confirmId, setConfirmId]           = useState<number | null>(null);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [clearingAll, setClearingAll]       = useState(false);
+  const [filter, setFilter]                 = useState<RiskFilter>('all');
 
-  /** True while the clear-all DELETE request is in flight. */
-  const [clearingAll, setClearingAll]         = useState(false);
-
-  /** Active risk-level filter; 'all' shows every record. */
-  const [filter, setFilter]                   = useState<RiskFilter>('all');
-
-  /** Fetch scan history from the backend on component mount. */
   useEffect(() => {
     fetch(`${BACKEND}/history`)
       .then(r => r.json())
-      .then((data: ScanRecord[]) => {
-        setRecords(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Could not load history. Is the backend running?');
-        setLoading(false);
-      });
+      .then((data: ScanRecord[]) => { setRecords(data); setLoading(false); })
+      .catch(() => { setError('Could not load history. Is the backend running?'); setLoading(false); });
   }, []);
 
-  /**
-   * Sends DELETE /history to remove all records, then clears local state.
-   * Only called after the user confirms the "Clear all records?" prompt.
-   */
   function handleClearAll() {
-    setClearingAll(true);
-    setConfirmClearAll(false);
+    setClearingAll(true); setConfirmClearAll(false);
     fetch(`${BACKEND}/history`, { method: 'DELETE' })
-      .then(r => r.json())
       .then(() => setRecords([]))
       .catch(() => {})
       .finally(() => setClearingAll(false));
   }
 
-  /**
-   * Shows the inline "Delete?" confirmation row for a specific record.
-   * Replaces the ✕ button with Yes / No buttons.
-   *
-   * @param id - ID of the record to confirm deletion for.
-   */
-  function requestDelete(id: number) {
-    setConfirmId(id);
-  }
-
-  /**
-   * Cancels a pending delete confirmation without deleting anything.
-   * Restores the ✕ button for the record.
-   */
-  function cancelDelete() {
-    setConfirmId(null);
-  }
-
-  /**
-   * Confirms and executes deletion of a single scan record.
-   * Sends DELETE /history/:id, then removes the record from local state on success.
-   *
-   * @param id - ID of the record to delete.
-   */
   function confirmDelete(id: number) {
-    setConfirmId(null);
-    setDeleting(id);
+    setConfirmId(null); setDeleting(id);
     fetch(`${BACKEND}/history/${id}`, { method: 'DELETE' })
-      .then(r => r.json())
-      .then(() => {
-        setRecords(prev => prev.filter(r => r.id !== id));
-      })
+      .then(() => setRecords(prev => prev.filter(r => r.id !== id)))
       .catch(() => {})
       .finally(() => setDeleting(null));
   }
 
-  // ── Render states ──────────────────────────────────────────────────────────
-
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b', fontSize: 12 }}>
+      <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 12 }}>
         Loading history…
       </div>
     );
@@ -127,32 +70,53 @@ export const HistoryView: React.FC = () => {
   if (error) {
     return (
       <div style={{
-        background: '#7f1d1d', border: '1px solid #dc2626', borderRadius: 8,
-        padding: '10px 12px', fontSize: 11, color: '#f87171',
+        background: '#fff1f2', border: '1px solid #fda4af',
+        borderRadius: 7, padding: '10px 12px',
+        fontSize: 11, color: '#be123c',
       }}>
         {error}
       </div>
     );
   }
 
-  /** Records after applying the active risk-level filter. */
   const visible = filter === 'all' ? records : records.filter(r => r.risk_level === filter);
+
+  const filterBtn = (f: RiskFilter, label: string) => {
+    const isActive = filter === f;
+    const color = f === 'all' ? '#4f46e5' : RISK_COLORS[f];
+    return (
+      <button
+        key={f}
+        onClick={() => setFilter(f)}
+        style={{
+          flex: 1, padding: '4px 0', fontSize: 10,
+          fontWeight: isActive ? 700 : 500,
+          borderRadius: 5,
+          border: `1px solid ${isActive ? color : '#e2e8f0'}`,
+          background: isActive ? (f === 'all' ? '#eef2ff' : RISK_BG[f]) : '#ffffff',
+          color: isActive ? color : '#94a3b8',
+          cursor: 'pointer', transition: 'all 0.15s',
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
-      {/* ── Clear all controls — only shown when records exist ── */}
+      {/* Clear all */}
       {records.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           {confirmClearAll ? (
-            /* Two-step confirmation: prompt + Yes/Cancel buttons */
             <>
-              <span style={{ fontSize: 10, color: '#94a3b8' }}>Clear all records?</span>
+              <span style={{ fontSize: 10, color: '#64748b' }}>Clear all records?</span>
               <button
                 onClick={handleClearAll}
                 style={{
-                  background: '#7f1d1d', border: '1px solid #dc2626', borderRadius: 4,
-                  color: '#f87171', fontSize: 10, padding: '2px 8px', cursor: 'pointer',
+                  background: '#fff1f2', border: '1px solid #fda4af', borderRadius: 4,
+                  color: '#be123c', fontSize: 10, padding: '2px 8px', cursor: 'pointer',
                 }}
               >
                 Yes, clear all
@@ -160,7 +124,7 @@ export const HistoryView: React.FC = () => {
               <button
                 onClick={() => setConfirmClearAll(false)}
                 style={{
-                  background: 'none', border: '1px solid #334155', borderRadius: 4,
+                  background: 'none', border: '1px solid #e2e8f0', borderRadius: 4,
                   color: '#64748b', fontSize: 10, padding: '2px 8px', cursor: 'pointer',
                 }}
               >
@@ -172,8 +136,8 @@ export const HistoryView: React.FC = () => {
               onClick={() => setConfirmClearAll(true)}
               disabled={clearingAll}
               style={{
-                background: 'none', border: '1px solid #334155', borderRadius: 4,
-                color: clearingAll ? '#475569' : '#64748b',
+                background: 'none', border: '1px solid #e2e8f0', borderRadius: 4,
+                color: clearingAll ? '#cbd5e1' : '#64748b',
                 fontSize: 10, padding: '2px 8px', cursor: 'pointer',
               }}
             >
@@ -183,68 +147,57 @@ export const HistoryView: React.FC = () => {
         </div>
       )}
 
-      {/* ── Risk-level filter pills ── */}
+      {/* Filter pills */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-        {(['all', 'high', 'medium', 'low'] as RiskFilter[]).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            style={{
-              flex: 1,
-              padding: '3px 0',
-              fontSize: 10,
-              fontWeight: filter === f ? 700 : 400,
-              borderRadius: 5,
-              border: `1px solid ${filter === f ? (f === 'all' ? '#94a3b8' : RISK_COLORS[f]) : '#334155'}`,
-              background: filter === f ? '#1e293b' : 'transparent',
-              color: filter === f ? (f === 'all' ? '#e2e8f0' : RISK_COLORS[f]) : '#64748b',
-              cursor: 'pointer',
-            }}
-          >
-            {f.toUpperCase()}
-          </button>
-        ))}
+        {filterBtn('all', 'ALL')}
+        {filterBtn('high', 'HIGH')}
+        {filterBtn('medium', 'MED')}
+        {filterBtn('low', 'LOW')}
       </div>
 
-      {/* ── Record list or empty state ── */}
+      {/* Records */}
       {visible.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: '#64748b', fontSize: 12 }}>
+        <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>
           {records.length === 0 ? 'No scans yet.' : `No ${filter} risk scans.`}
         </div>
       ) : (
         visible.map(rec => {
-          const color = RISK_COLORS[rec.risk_level] ?? '#94a3b8';
-          const date = new Date(rec.scanned_at).toLocaleString();
+          const color  = RISK_COLORS[rec.risk_level] ?? '#64748b';
+          const bg     = RISK_BG[rec.risk_level] ?? '#f8fafc';
+          const border = RISK_BORDER[rec.risk_level] ?? '#e2e8f0';
+          const date   = new Date(rec.scanned_at).toLocaleString();
           const isPendingConfirm = confirmId === rec.id;
 
           return (
             <div key={rec.id} style={{
-              background: '#1e293b', borderRadius: 8, padding: '8px 10px',
+              background: '#ffffff',
+              border: `1px solid ${border}`,
               borderLeft: `3px solid ${color}`,
+              borderRadius: 8,
+              padding: '9px 11px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
             }}>
-              {/* Record header: domain + delete control */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-                <div style={{ fontSize: 11, color: '#e2e8f0', wordBreak: 'break-all', marginBottom: 2, flex: 1 }}>
+                <div style={{ fontSize: 12, color: '#1e293b', fontWeight: 600, wordBreak: 'break-all', flex: 1 }}>
                   {rec.domain || rec.url}
                 </div>
 
                 {isPendingConfirm ? (
-                  /* Inline delete confirmation */
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8' }}>Delete?</span>
+                    <span style={{ fontSize: 10, color: '#64748b' }}>Delete?</span>
                     <button
                       onClick={() => confirmDelete(rec.id)}
                       style={{
-                        background: '#7f1d1d', border: '1px solid #dc2626', borderRadius: 4,
-                        color: '#f87171', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
+                        background: '#fff1f2', border: '1px solid #fda4af', borderRadius: 4,
+                        color: '#be123c', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
                       }}
                     >
                       Yes
                     </button>
                     <button
-                      onClick={cancelDelete}
+                      onClick={() => setConfirmId(null)}
                       style={{
-                        background: 'none', border: '1px solid #334155', borderRadius: 4,
+                        background: 'none', border: '1px solid #e2e8f0', borderRadius: 4,
                         color: '#64748b', fontSize: 10, padding: '1px 6px', cursor: 'pointer',
                       }}
                     >
@@ -252,33 +205,33 @@ export const HistoryView: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  /* Single-tap delete button — shows confirm row on click */
                   <button
-                    onClick={() => requestDelete(rec.id)}
+                    onClick={() => setConfirmId(rec.id)}
                     disabled={deleting === rec.id}
-                    title="Delete record"
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer',
-                      color: deleting === rec.id ? '#475569' : '#64748b',
-                      fontSize: 12, padding: '0 2px', flexShrink: 0, lineHeight: 1,
+                      color: deleting === rec.id ? '#cbd5e1' : '#94a3b8',
+                      fontSize: 12, padding: '0 2px', flexShrink: 0,
                     }}
                   >
-                    {deleting === rec.id ? '…' : '✕'}
+                    {deleting === rec.id ? '…' : 'x'}
                   </button>
                 )}
               </div>
 
-              {/* Risk level badge + timestamp */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 10, color, fontWeight: 600 }}>
-                  {rec.risk_level.toUpperCase()} · {rec.risk_score}/100
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <span style={{
+                  fontSize: 10, color, fontWeight: 700,
+                  background: bg, padding: '1px 7px', borderRadius: 10,
+                  border: `1px solid ${border}`,
+                }}>
+                  {rec.risk_level.toUpperCase()} {rec.risk_score}/100
                 </span>
-                <span style={{ fontSize: 9, color: '#475569' }}>{date}</span>
+                <span style={{ fontSize: 9, color: '#94a3b8' }}>{date}</span>
               </div>
 
-              {/* Summary snippet */}
               {rec.summary && (
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 5, lineHeight: 1.4 }}>
                   {rec.summary}
                 </div>
               )}
