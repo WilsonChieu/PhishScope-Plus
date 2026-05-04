@@ -69,7 +69,7 @@
       font-size: 12px;
       color: #64748b;
       word-break: break-all;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       line-height: 1.5;
     }
     .url-box strong {
@@ -81,44 +81,92 @@
       margin-bottom: 4px;
     }
 
-    .score-row {
+    /* ── Risk card — matches popup RiskBadge ── */
+    .risk-card {
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+    .risk-card.high   { border: 1.5px solid #fda4af; }
+    .risk-card.medium { border: 1.5px solid #fcd34d; }
+
+    .risk-card-header {
+      padding: 12px 16px;
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
+      justify-content: space-between;
     }
-    .badge {
-      font-size: 11px;
-      font-weight: 700;
+    .risk-card.high   .risk-card-header { background: #ffe4e6; border-bottom: 1px solid #fda4af; }
+    .risk-card.medium .risk-card-header { background: #fef3c7; border-bottom: 1px solid #fcd34d; }
+
+    .risk-card-label {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+    .risk-card.high   .risk-card-label { color: #9f1239; }
+    .risk-card.medium .risk-card-label { color: #92400e; }
+
+    .risk-card-score-box {
+      background: #ffffff;
+      border-radius: 8px;
       padding: 4px 10px;
-      border-radius: 20px;
-      letter-spacing: 0.5px;
+      line-height: 1;
+      display: flex;
+      align-items: baseline;
+      gap: 1px;
     }
-    .badge.high   { background: #7f1d1d; color: #f87171; border: 1px solid #dc2626; }
-    .badge.medium { background: #431407; color: #fbbf24; border: 1px solid #d97706; }
+    .risk-card.high   .risk-card-score-box { border: 1.5px solid #fda4af; }
+    .risk-card.medium .risk-card-score-box { border: 1.5px solid #fcd34d; }
 
-    .score-bar-wrap {
-      flex: 1;
-      background: #0f172a;
-      border-radius: 4px;
-      height: 6px;
-      overflow: hidden;
+    .risk-card-score-num {
+      font-size: 20px;
+      font-weight: 800;
     }
-    .score-bar {
-      height: 100%;
-      border-radius: 4px;
-      transition: width 0.6s ease;
-    }
-    .score-bar.high   { background: #dc2626; }
-    .score-bar.medium { background: #d97706; }
+    .risk-card.high   .risk-card-score-num { color: #9f1239; }
+    .risk-card.medium .risk-card-score-num { color: #92400e; }
 
-    .score-label {
+    .risk-card-score-denom {
+      font-size: 10px;
+      opacity: 0.6;
+    }
+    .risk-card.high   .risk-card-score-denom { color: #9f1239; }
+    .risk-card.medium .risk-card-score-denom { color: #92400e; }
+
+    .risk-card-body {
+      padding: 8px 16px 10px;
+    }
+    .risk-card.high   .risk-card-body { background: #fff1f2; }
+    .risk-card.medium .risk-card-body { background: #fffbeb; }
+
+    .risk-card-action {
       font-size: 12px;
-      color: #94a3b8;
-      min-width: 44px;
-      text-align: right;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .risk-card.high   .risk-card-action { color: #9f1239; }
+    .risk-card.medium .risk-card-action { color: #92400e; }
+
+    .risk-card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .risk-card-domain {
+      font-size: 11px;
+      color: #475569;
+      word-break: break-all;
+      flex: 1;
+      margin-right: 8px;
+    }
+    .risk-card-https {
+      font-size: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
     }
 
+    /* ── Factor tags ── */
     .factors-title {
       font-size: 11px;
       color: #64748b;
@@ -126,7 +174,6 @@
       letter-spacing: 0.5px;
       margin-bottom: 8px;
     }
-
     .factors {
       display: flex;
       flex-wrap: wrap;
@@ -142,12 +189,12 @@
       color: #94a3b8;
     }
 
+    /* ── Buttons ── */
     .actions {
       display: flex;
       flex-direction: column;
       gap: 10px;
     }
-
     .btn {
       width: 100%;
       padding: 12px 20px;
@@ -160,11 +207,7 @@
     }
     .btn:hover { opacity: 0.85; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .btn-safe {
-      background: #2563eb;
-      color: #fff;
-    }
+    .btn-safe    { background: #2563eb; color: #fff; }
     .btn-proceed {
       background: transparent;
       border: 1px solid #334155;
@@ -200,12 +243,22 @@
         <span id="url-display"></span>
       </div>
 
-      <div class="score-row">
-        <span class="badge" id="risk-badge">HIGH RISK</span>
-        <div class="score-bar-wrap">
-          <div class="score-bar" id="score-bar" style="width: 0%"></div>
+      <!-- Risk card — same design as popup RiskBadge -->
+      <div class="risk-card" id="risk-card">
+        <div class="risk-card-header">
+          <div class="risk-card-label" id="risk-badge">HIGH RISK</div>
+          <div class="risk-card-score-box">
+            <span class="risk-card-score-num" id="score-label">0</span>
+            <span class="risk-card-score-denom">/100</span>
+          </div>
         </div>
-        <span class="score-label" id="score-label">0/100</span>
+        <div class="risk-card-body">
+          <div class="risk-card-action" id="risk-action">Do not enter any personal information</div>
+          <div class="risk-card-meta">
+            <span class="risk-card-domain" id="risk-domain"></span>
+            <span class="risk-card-https" id="risk-https"></span>
+          </div>
+        </div>
       </div>
 
       <div id="factors-section" style="display:none">
@@ -219,7 +272,7 @@
       </div>
     </div>
 
-    <div class="footer">PhishScope+ &mdash; AI-assisted phishing detection</div>
+    <div class="footer">PhishScope+ &mdash; Phishing Detection &amp; Sandbox</div>
   </div>
 
   <script src="warning.js"></script>

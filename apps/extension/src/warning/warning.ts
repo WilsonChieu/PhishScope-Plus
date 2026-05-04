@@ -55,25 +55,33 @@ const factors   = (params.get('factors') ?? '').split(',').filter(Boolean);
 
 // ── Populate UI ───────────────────────────────────────────────────────────────
 
-const banner     = document.getElementById('banner')!;
-const riskBadge  = document.getElementById('risk-badge')!;
-const scoreBar   = document.getElementById('score-bar')!;
-const scoreLabel = document.getElementById('score-label')!;
-const heading    = document.getElementById('heading')!;
+const banner  = document.getElementById('banner')!;
+const heading = document.getElementById('heading')!;
 
-// Apply risk-level CSS class to colour-coded elements
+// Extract domain and HTTPS status from the target URL
+let domain   = '';
+let isHttps  = false;
+try {
+  const parsed = new URL(targetUrl);
+  domain  = parsed.hostname;
+  isHttps = parsed.protocol === 'https:';
+} catch {}
+
+// Apply risk-level class to banner and risk card
 banner.classList.add(risk);
-riskBadge.classList.add(risk);
-riskBadge.textContent = risk === 'high' ? 'HIGH RISK' : 'MEDIUM RISK';
-scoreBar.classList.add(risk);
-scoreLabel.textContent = `${score}/100`;
+document.getElementById('risk-card')!.classList.add(risk);
 
-// Animate the score bar after the first paint to trigger the CSS transition
-requestAnimationFrame(() => {
-  setTimeout(() => { scoreBar.style.width = `${score}%`; }, 50);
-});
+// Populate risk card
+document.getElementById('risk-badge')!.textContent  = risk === 'high' ? 'HIGH RISK' : 'MEDIUM RISK';
+document.getElementById('score-label')!.textContent = String(score);
+document.getElementById('risk-action')!.textContent =
+  risk === 'high' ? 'Do not enter any personal information' : 'Proceed with caution';
+document.getElementById('risk-domain')!.textContent = domain || 'Unknown domain';
+const httpsEl = document.getElementById('risk-https') as HTMLElement;
+httpsEl.textContent  = isHttps ? 'HTTPS' : 'HTTP';
+httpsEl.style.color  = isHttps ? '#15803d' : '#b45309';
 
-// Softer wording and icon for medium-risk URLs
+// Softer wording for medium-risk URLs
 if (risk === 'medium') {
   heading.textContent = 'Suspicious Site Detected';
   (document.getElementById('subheading') as HTMLElement).textContent =
