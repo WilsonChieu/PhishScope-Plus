@@ -12,9 +12,30 @@ interface Props {
 }
 
 const COLORS = {
-  low:    { bg: '#f0fdf4', border: '#86efac', text: '#15803d', label: 'LOW RISK' },
-  medium: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309', label: 'MEDIUM RISK' },
-  high:   { bg: '#fff1f2', border: '#fda4af', text: '#be123c', label: 'HIGH RISK' },
+  low: {
+    headerBg: '#dcfce7',
+    bg:       '#f0fdf4',
+    border:   '#86efac',
+    text:     '#15803d',
+    label:    'LOW RISK',
+    action:   'This site appears safe to visit',
+  },
+  medium: {
+    headerBg: '#fef3c7',
+    bg:       '#fffbeb',
+    border:   '#fcd34d',
+    text:     '#92400e',
+    label:    'MEDIUM RISK',
+    action:   'Proceed with caution',
+  },
+  high: {
+    headerBg: '#ffe4e6',
+    bg:       '#fff1f2',
+    border:   '#fda4af',
+    text:     '#9f1239',
+    label:    'HIGH RISK',
+    action:   'Do not enter any personal information',
+  },
 };
 
 export const RiskBadge: React.FC<Props> = ({ riskLevel, riskScore, domain, isHttps }) => {
@@ -22,46 +43,60 @@ export const RiskBadge: React.FC<Props> = ({ riskLevel, riskScore, domain, isHtt
 
   return (
     <div style={{
-      background: c.bg,
       border: `1.5px solid ${c.border}`,
       borderRadius: 10,
-      padding: '14px 16px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 14,
+      overflow: 'hidden',
       marginBottom: 4,
+      boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
     }}>
-      {/* Score ring */}
-      <div style={{
-        width: 56, height: 56, borderRadius: '50%',
-        border: `3px solid ${c.border}`,
-        background: '#ffffff',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-        boxShadow: `0 0 0 3px ${c.bg}`,
-      }}>
-        <span style={{ fontSize: 18, fontWeight: 800, color: c.text, lineHeight: 1 }}>{riskScore}</span>
-        <span style={{ fontSize: 9, color: c.text, opacity: 0.7 }}>/100</span>
-      </div>
 
-      {/* Info */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: c.text, letterSpacing: '0.06em' }}>
+      {/* Risk level header — dominant, immediately visible */}
+      <div style={{
+        background: c.headerBg,
+        borderBottom: `1px solid ${c.border}`,
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: c.text, letterSpacing: '0.04em' }}>
           {c.label}
         </div>
-        <div style={{ fontSize: 12, color: '#475569', marginTop: 3, wordBreak: 'break-all' }}>
-          {domain || 'Unknown domain'}
-        </div>
         <div style={{
-          fontSize: 11,
-          color: isHttps ? '#15803d' : '#b45309',
-          marginTop: 4,
-          fontWeight: 500,
+          background: '#ffffff',
+          border: `1.5px solid ${c.border}`,
+          borderRadius: 8,
+          padding: '4px 10px',
+          textAlign: 'center',
+          lineHeight: 1,
         }}>
-          {isHttps ? 'HTTPS — Encrypted' : 'HTTP — Unencrypted'}
+          <span style={{ fontSize: 20, fontWeight: 800, color: c.text }}>{riskScore}</span>
+          <span style={{ fontSize: 10, color: c.text, opacity: 0.6 }}>/100</span>
         </div>
       </div>
+
+      {/* Action message — tells user what to do */}
+      <div style={{
+        background: c.bg,
+        padding: '8px 16px 10px',
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: c.text, marginBottom: 6 }}>
+          {c.action}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#475569', wordBreak: 'break-all', flex: 1, marginRight: 8 }}>
+            {domain || 'Unknown domain'}
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 600,
+            color: isHttps ? '#15803d' : '#b45309',
+            flexShrink: 0,
+          }}>
+            {isHttps ? 'HTTPS' : 'HTTP'}
+          </span>
+        </div>
+      </div>
+
     </div>
   );
 };
