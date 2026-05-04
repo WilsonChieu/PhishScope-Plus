@@ -2,13 +2,14 @@
  * serviceWorker.ts
  * PhishScope+ MV3 background service worker.
  *
- * Privacy model (per-request):
- *  1. On-device heuristic runs first — no data leaves the browser.
- *  2. Only URLs that score medium or high locally are forwarded to the backend.
- *  3. Before forwarding, query strings and fragments are stripped so personal
- *     data embedded in URLs (tokens, search terms) never reach the server.
- *  4. Backend analysis is logged to scan history ONLY for user-initiated scans
- *     (popup "Scan URL" button). Auto-triggered background scans set log:false.
+ * Privacy model — all automatic scanning is 100% on-device:
+ *  1. Navigation interception uses the local heuristic engine only.
+ *     No URL is ever sent to the backend automatically.
+ *  2. The backend is called ONLY when the user explicitly clicks "Scan URL"
+ *     in the popup (consent is the act of clicking the button).
+ *  3. User-initiated scans set log:true so the result is saved to history.
+ *  4. Before any URL reaches the backend, query strings and fragments are
+ *     stripped (sanitizeUrl) to remove tokens / personal identifiers.
  *
  * Caching strategy (two layers):
  *  - tabCache  (Map<tabId, FullAnalysis>) — for auto-scanned tabs
@@ -52,17 +53,6 @@ const waiters = new Map<string, Array<(r: MessageResponse) => void>>();
 
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
-/** Strip query string and fragment before sending a URL to the backend. */
-function sanitizeUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    u.search = '';
-    u.hash = '';
-    return u.toString();
-  } catch {
-    return url;
-  }
-}
 
 async function postJSON<T>(endpoint: string, body: object): Promise<T> {
   const res = await fetch(`${BACKEND}${endpoint}`, {
@@ -77,11 +67,6 @@ async function postJSON<T>(endpoint: string, body: object): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/**
- * @param log - true for user-initiated scans (consent implied); false for
- *              automatic background scans. Controls whether the result is
- *              persisted to scan history on the backend.
- */
 async function runFullAnalysis(url: string, log: boolean): Promise<FullAnalysis> {
   const [heuristic, sandbox] = await Promise.all([
     postJSON<AnalyseUrlResponse>('/analyse-url', { url }),
@@ -114,13 +99,6 @@ function rejectAnalysis(url: string, err: unknown): void {
   pending.forEach(fn => { try { fn({ type: 'ERROR', error: msg }); } catch {} });
 }
 
-/**
- * Register a callback and start analysis if not already running.
- *
- * @param url - URL to analyse (should already be sanitized for auto-scans).
- * @param log - Whether to persist the result to scan history.
- * @param cb  - Optional sendResponse / waiter to call when done.
- */
 function startOrJoin(url: string, log: boolean, cb?: (r: MessageResponse) => void): void {
   if (cb) {
     const arr = waiters.get(url) ?? [];
@@ -232,52 +210,24 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       return;
     }
 
-    // URL cache hit — same protection, no network call needed
-    const byUrl = urlCache.get(sanitizeUrl(url));
+    // URL cache hit from a previous user scan — redirect without re-analysing
+    const byUrl = urlCache.get(url);
     if (byUrl && isRisky(byUrl.heuristic.riskLevel)) {
       redirectToWarning(tabId, url, byUrl.heuristic);
       return;
     }
 
-    // On-device heuristic — runs instantly, URL never leaves browser for low risk
+    // On-device heuristic — no backend call, no data leaves the browser
     const localResult = analyseUrlLocally(url);
-    if (!isRisky(localResult.riskLevel)) return;
-
-    // Medium/high locally: escalate to backend with sanitized URL (no query params)
-    const sanitized = sanitizeUrl(url);
-    postJSON<AnalyseUrlResponse>('/analyse-url', { url: sanitized })
-      .then(heuristic => {
-        if (acknowledged.has(url) || !isRisky(heuristic.riskLevel)) return;
-        chrome.tabs.get(tabId, currentTab => {
-          if (chrome.runtime.lastError) return;
-          if (currentTab.url === url && !acknowledged.has(url)) {
-            redirectToWarning(tabId, url, heuristic);
-          }
-        });
-      })
-      .catch(() => {});
-
+    if (isRisky(localResult.riskLevel)) {
+      redirectToWarning(tabId, url, localResult);
+    }
     return;
   }
 
-  // Complete phase: full background analysis for medium/high-risk pages
+  // Complete phase: associate any previously user-scanned result with this tab
   if (changeInfo.status === 'complete') {
-    const sanitized = sanitizeUrl(url);
-
-    // Already cached under the sanitized URL — associate with this tab
-    const existing = urlCache.get(sanitized);
-    if (existing) {
-      tabCache.set(tabId, existing);
-      return;
-    }
-
-    // On-device pre-screen: skip full analysis for low-risk URLs entirely
-    const localResult = analyseUrlLocally(url);
-    if (!isRisky(localResult.riskLevel)) return;
-
-    // Medium/high: run full pipeline with sanitized URL; log:false (no user consent for auto-scan)
-    startOrJoin(sanitized, false, (r) => {
-      if (r.type === 'ANALYSIS_RESULT') tabCache.set(tabId, r.data);
-    });
+    const existing = urlCache.get(url);
+    if (existing) tabCache.set(tabId, existing);
   }
 });
