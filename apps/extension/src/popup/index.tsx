@@ -343,7 +343,7 @@ function App() {
             {status === 'done' && analysis && (
               <>
                 <RiskBadge
-                  riskLevel={analysis.heuristic.riskLevel}
+                  riskLevel={analysis.summary.overallRisk}
                   riskScore={analysis.heuristic.riskScore}
                   domain={analysis.heuristic.domain}
                   isHttps={analysis.heuristic.isHttps}

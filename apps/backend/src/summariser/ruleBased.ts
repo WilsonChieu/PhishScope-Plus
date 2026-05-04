@@ -11,8 +11,21 @@
  * The overall risk can only be escalated by sandbox findings — never lowered.
  */
 
+import { parse as parseTld } from 'tldts';
 import type { HeuristicResult } from '../detection/heuristic';
 import type { SandboxResult } from '../sandbox/playwrightSandbox';
+
+function getRegisteredDomain(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    return parseTld(hostname).domain ?? hostname;
+  } catch { return ''; }
+}
+
+function isSameDomain(url: string, registeredDomain: string): boolean {
+  const d = getRegisteredDomain(url);
+  return d === '' || d === registeredDomain;
+}
 
 /** Output of the summarise() function. */
 export interface SummariseResult {
@@ -78,6 +91,7 @@ function computeOverallRisk(
   heuristicLevel: 'low' | 'medium' | 'high',
   sandbox: SandboxResult,
   factors: string[],
+  registeredDomain: string,
 ): 'low' | 'medium' | 'high' {
   let level = heuristicLevel;
 
@@ -96,8 +110,12 @@ function computeOverallRisk(
     if (level === 'medium') level = 'high';
   }
 
-  if (sandbox.externalPostTargets && sandbox.externalPostTargets.length > 0) {
-    // Form data sent to a third-party origin — suspicious regardless of score
+  // Only escalate for POST targets that go to a genuinely different domain.
+  // Same registered domain with different subdomain (e.g. youtube.com → www.youtube.com)
+  // is normal behaviour and should not raise the risk level.
+  const trulyExternalPosts = (sandbox.externalPostTargets ?? [])
+    .filter(t => !isSameDomain(t, registeredDomain));
+  if (trulyExternalPosts.length > 0) {
     level = maxRisk(level, 'medium');
   }
 
@@ -119,6 +137,7 @@ function buildBullets(
   factors: string[],
   sandbox: SandboxResult,
   overallRisk: 'low' | 'medium' | 'high',
+  registeredDomain: string,
 ): string[] {
   // Start with one bullet per triggered heuristic factor
   const bullets: string[] = factors
@@ -139,20 +158,24 @@ function buildBullets(
     bullets.push(`The page content references brand(s): ${sandbox.detectedBrands.join(', ')}. Confirm you are on the official site before trusting it.`);
   }
 
-  // Warn if the redirect chain crosses domain boundaries — a common phishing tactic
+  // Warn if the redirect chain crosses registered-domain boundaries.
+  // www-redirects (e.g. example.com → www.example.com) are normal and excluded.
   if (sandbox.redirectChain.length >= 2) {
     try {
-      const firstOrigin = new URL(sandbox.redirectChain[0]).origin;
-      const lastOrigin  = new URL(sandbox.redirectChain[sandbox.redirectChain.length - 1]).origin;
-      if (firstOrigin !== lastOrigin) {
-        bullets.push(`This URL redirects through ${sandbox.redirectChain.length} step(s) to a different domain (${lastOrigin}). Redirects to unrelated domains are a common phishing tactic.`);
+      const firstDomain = getRegisteredDomain(sandbox.redirectChain[0]);
+      const lastUrl     = sandbox.redirectChain[sandbox.redirectChain.length - 1];
+      const lastDomain  = getRegisteredDomain(lastUrl);
+      if (firstDomain && lastDomain && firstDomain !== lastDomain) {
+        bullets.push(`This URL redirects through ${sandbox.redirectChain.length - 1} step(s) to a different domain (${new URL(lastUrl).hostname}). Redirects to unrelated domains are a common phishing tactic.`);
       }
     } catch { /* ignore unparseable URLs in chain */ }
   }
 
-  // Warn about POST targets that are external to the page origin (possible data exfiltration)
-  if (sandbox.externalPostTargets && sandbox.externalPostTargets.length > 0) {
-    bullets.push(`The page sends data to external domain(s): ${sandbox.externalPostTargets.join(', ')} — this may indicate form data is being collected by a third party.`);
+  // Warn about POST targets that go to a genuinely different registered domain.
+  const trulyExternalPosts = (sandbox.externalPostTargets ?? [])
+    .filter(t => !isSameDomain(t, registeredDomain));
+  if (trulyExternalPosts.length > 0) {
+    bullets.push(`The page sends form data to external domain(s): ${trulyExternalPosts.join(', ')} — this may indicate data is being collected by a third party.`);
   }
 
   return bullets;
@@ -215,8 +238,8 @@ export function summarise(
   heuristic: HeuristicResult,
   sandbox: SandboxResult,
 ): SummariseResult {
-  const overallRisk = computeOverallRisk(heuristic.riskLevel, sandbox, heuristic.factors);
-  const bulletPoints = buildBullets(heuristic.factors, sandbox, overallRisk);
+  const overallRisk = computeOverallRisk(heuristic.riskLevel, sandbox, heuristic.factors, heuristic.domain);
+  const bulletPoints = buildBullets(heuristic.factors, sandbox, overallRisk, heuristic.domain);
   const summary = buildSummary(
     overallRisk,
     heuristic.riskLevel,
