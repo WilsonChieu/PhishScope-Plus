@@ -123,3 +123,4 @@ export function hasScanForUrl(url: string, withinMinutes = 5): boolean {
   const cutoff = Date.now() - withinMinutes * 60 * 1000;
   return records.some(r => r.url === url && new Date(r.scanned_at).getTime() >= cutoff);
 }
+

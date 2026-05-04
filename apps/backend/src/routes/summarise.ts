@@ -79,11 +79,16 @@ router.post('/', async (req: Request, res: Response) => {
     const result = summarise(heuristic, sandbox);
 
     // Persist to history only when the caller explicitly opts in (log:true).
-    // Auto-triggered background scans set log:false — the user never consented
-    // to having those URLs stored. Only popup "Scan URL" clicks set log:true.
-    if (log === true && !hasScanForUrl(url, 5)) {
+    // Strip query string and fragment before storing so sensitive tokens or
+    // personal identifiers embedded in URLs are never written to disk.
+    const urlForStorage = (() => {
+      try { const u = new URL(url); u.search = ''; u.hash = ''; return u.toString(); }
+      catch { return url; }
+    })();
+
+    if (log === true && !hasScanForUrl(urlForStorage, 5)) {
       saveScan({
-        url,
+        url: urlForStorage,
         domain:               heuristic.domain,
         risk_score:           heuristic.riskScore,
         risk_level:           result.overallRisk,

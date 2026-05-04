@@ -8,11 +8,11 @@
  *  2. The backend is called ONLY when the user explicitly clicks "Scan URL"
  *     in the popup (consent is the act of clicking the button).
  *  3. User-initiated scans set log:true so the result is saved to history.
- *  4. Before any URL reaches the backend, query strings and fragments are
- *     stripped (sanitizeUrl) to remove tokens / personal identifiers.
+ *     The backend strips query strings before storing the URL so sensitive
+ *     tokens / parameters are never persisted to scan_history.json.
  *
  * Caching strategy (two layers):
- *  - tabCache  (Map<tabId, FullAnalysis>) — for auto-scanned tabs
+ *  - tabCache  (Map<tabId, FullAnalysis>) — caches user-scanned results by tab
  *  - urlCache  (Map<url,   FullAnalysis>) — for manually scanned URLs and
  *    reliable lookup after service worker restarts
  *
