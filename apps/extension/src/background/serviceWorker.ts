@@ -150,14 +150,10 @@ chrome.runtime.onMessage.addListener(
     if (message.type === 'ANALYSE_URL') {
       const { url } = message;
 
-      // Serve immediately from URL cache
-      const cached = urlCache.get(url);
-      if (cached) {
-        sendResponse({ type: 'ANALYSIS_RESULT', data: cached });
-        return false;
-      }
-
-      // User explicitly requested a scan — consent implied, always log
+      // Always run a fresh analysis on explicit user request so every scan
+      // goes through runFullAnalysis and gets logged to history.
+      // (urlCache is only used by GET_CACHED_BY_URL for mid-flight polling.)
+      urlCache.delete(url);
       startOrJoin(url, true, sendResponse);
       return true; // Keep channel open until sendResponse is called
     }
