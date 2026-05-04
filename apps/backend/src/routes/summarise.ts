@@ -46,10 +46,11 @@ function isValidHttpUrl(url: string): boolean {
  * Returns: { summary, bulletPoints, overallRisk }
  */
 router.post('/', async (req: Request, res: Response) => {
-  const { url, heuristicResult, sandboxResult } = req.body as {
+  const { url, heuristicResult, sandboxResult, log } = req.body as {
     url?: string;
     heuristicResult?: HeuristicResult;
     sandboxResult?: SandboxResult;
+    log?: boolean;
   };
 
   if (!url || typeof url !== 'string') {
@@ -77,10 +78,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     const result = summarise(heuristic, sandbox);
 
-    // Persist to history only if this URL has not been saved recently.
-    // Deduplication window: 5 minutes — wide enough to absorb service worker
-    // restarts but narrow enough to allow deliberate re-scans from the popup.
-    if (!hasScanForUrl(url, 5)) {
+    // Persist to history only when the caller explicitly opts in (log:true).
+    // Auto-triggered background scans set log:false — the user never consented
+    // to having those URLs stored. Only popup "Scan URL" clicks set log:true.
+    if (log === true && !hasScanForUrl(url, 5)) {
       saveScan({
         url,
         domain:               heuristic.domain,

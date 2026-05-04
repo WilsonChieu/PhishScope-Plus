@@ -6,12 +6,11 @@
  * The tooltip shows the heuristic risk level, score, domain, HTTPS status,
  * and up to 3 triggered risk factor tags.
  *
- * Results are cached in memory for the lifetime of the page to avoid
- * repeated network calls for the same URL. Only the lightweight /analyse-url
- * endpoint is used — no sandbox or summarise call is made from here.
+ * Privacy: all analysis runs entirely on-device via the local heuristic engine.
+ * No URL or any other data is sent to the backend for link hover checks.
  */
 
-import { BACKEND } from '../config';
+import { analyseUrlLocally } from '../detection/heuristic';
 
 /**
  * Short human-readable labels for each heuristic factor key.
@@ -32,7 +31,7 @@ const FACTOR_LABELS: Record<string, string> = {
   invalid_url:          'Malformed URL',
 };
 
-/** Subset of HeuristicResult fields needed by the tooltip. */
+/** Subset of fields needed by the tooltip. */
 interface HeuristicResult {
   riskLevel: 'low' | 'medium' | 'high';
   riskScore: number;
@@ -43,9 +42,6 @@ interface HeuristicResult {
 
 /** In-page URL → heuristic result cache. Cleared on page unload. */
 const cache = new Map<string, HeuristicResult>();
-
-/** URLs whose heuristic is currently being fetched (prevents duplicate requests). */
-const inFlight = new Set<string>();
 
 /** Colour scheme for each risk level. */
 const RISK = {
@@ -59,11 +55,6 @@ const RISK = {
 /** Singleton tooltip <div> appended to <html> (not <body>) to survive body replacements. */
 let tooltip: HTMLDivElement | null = null;
 
-/**
- * Returns the singleton tooltip element, creating it on first call.
- * Appended to `document.documentElement` (the <html> element) so it survives
- * any JS that replaces document.body.
- */
 function getTooltip(): HTMLDivElement {
   if (!tooltip) {
     tooltip = document.createElement('div');
@@ -90,13 +81,6 @@ function getTooltip(): HTMLDivElement {
   return tooltip;
 }
 
-/**
- * Positions the tooltip near the cursor while keeping it inside the viewport.
- * Flips the tooltip to the left or above the cursor if it would overflow.
- *
- * @param x - Cursor clientX position.
- * @param y - Cursor clientY position.
- */
 function positionTooltip(x: number, y: number) {
   const el = getTooltip();
   const vw = window.innerWidth;
@@ -111,33 +95,10 @@ function positionTooltip(x: number, y: number) {
   el.style.top  = top + 'px';
 }
 
-/**
- * Shows the tooltip in a "Checking link…" loading state at the cursor position.
- * Displayed while waiting for the heuristic API response.
- *
- * @param x - Cursor clientX position.
- * @param y - Cursor clientY position.
- */
-function showLoading(x: number, y: number) {
-  const el = getTooltip();
-  el.innerHTML = '<span style="color:#64748b;font-size:11px">Checking link…</span>';
-  el.style.display = 'block';
-  positionTooltip(x, y);
-}
-
-/**
- * Populates and shows the tooltip with the heuristic result for a URL.
- * Displays risk level, score, domain, HTTPS status, and up to 3 factor tags.
- *
- * @param data - Heuristic result from the backend.
- * @param x    - Cursor clientX position.
- * @param y    - Cursor clientY position.
- */
 function showResult(data: HeuristicResult, x: number, y: number) {
   const r = RISK[data.riskLevel] ?? RISK.low;
   const el = getTooltip();
 
-  // Build up to 3 factor tags (most important factors)
   const factorTags = data.factors
     .slice(0, 3)
     .map(f => {
@@ -173,53 +134,16 @@ function showResult(data: HeuristicResult, x: number, y: number) {
   positionTooltip(x, y);
 }
 
-/**
- * Hides the tooltip element (sets display:none).
- * Called on mouseout or when the cursor moves to a different link.
- */
 function hideTooltip() {
   if (tooltip) tooltip.style.display = 'none';
 }
 
-// ── Heuristic fetching ────────────────────────────────────────────────────────
-
-/**
- * Fetches the heuristic risk assessment for a URL from the backend.
- * Returns null if the backend is unreachable or returns an error — the tooltip
- * simply won't be shown rather than causing visible errors.
- *
- * @param url - The fully-qualified URL of the hovered link.
- */
-async function fetchHeuristic(url: string): Promise<HeuristicResult | null> {
-  try {
-    const res = await fetch(`${BACKEND}/analyse-url`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-    if (!res.ok) return null;
-    return await res.json() as HeuristicResult;
-  } catch {
-    return null; // Backend not running — fail silently
-  }
-}
-
 // ── Event handling ────────────────────────────────────────────────────────────
 
-/** Timer that delays showing the tooltip to avoid flicker when skimming links. */
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** Timer that delays hiding the tooltip after the cursor leaves a link. */
 let hideTimer:  ReturnType<typeof setTimeout> | null = null;
-
-/** href of the link currently under the cursor. */
 let currentHref = '';
 
-/**
- * mouseover: start the 350 ms hover timer when the cursor enters a link.
- * On expiry: show a loading state, fetch the heuristic, then show the result.
- * Uses capture phase (true) so it receives events before the page's own handlers.
- */
 document.addEventListener('mouseover', (e) => {
   const anchor = (e.target as HTMLElement).closest('a');
   if (!anchor) return;
@@ -231,47 +155,25 @@ document.addEventListener('mouseover', (e) => {
   currentHref = href;
 
   if (hoverTimer) clearTimeout(hoverTimer);
-  hoverTimer = setTimeout(async () => {
-    // Serve from cache if already fetched for this URL
-    if (cache.has(href)) {
-      showResult(cache.get(href)!, e.clientX, e.clientY);
-      return;
+  hoverTimer = setTimeout(() => {
+    // Serve from cache if already computed for this URL
+    if (!cache.has(href)) {
+      // On-device analysis — instant, no network request
+      cache.set(href, analyseUrlLocally(href));
     }
 
-    showLoading(e.clientX, e.clientY);
-
-    // Only one in-flight request per URL to prevent duplicate API calls
-    if (!inFlight.has(href)) {
-      inFlight.add(href);
-      const result = await fetchHeuristic(href);
-      inFlight.delete(href);
-      if (result) cache.set(href, result);
-    }
-
-    // Only render the result if the mouse is still on the same link
-    if (currentHref === href && cache.has(href)) {
+    if (currentHref === href) {
       showResult(cache.get(href)!, e.clientX, e.clientY);
-    } else if (currentHref !== href) {
-      hideTooltip();
     }
   }, 350);
 }, true);
 
-/**
- * mousemove: keep the tooltip tracking the cursor while it's visible.
- * Uses capture phase so it fires even on pages that stop propagation.
- */
 document.addEventListener('mousemove', (e) => {
   if (tooltip && tooltip.style.display !== 'none') {
     positionTooltip(e.clientX, e.clientY);
   }
 }, true);
 
-/**
- * mouseout: cancel the hover timer and schedule hiding the tooltip with a
- * short 200 ms delay (allows the cursor to briefly leave and re-enter the
- * link without the tooltip disappearing).
- */
 document.addEventListener('mouseout', (e) => {
   const anchor = (e.target as HTMLElement).closest('a');
   if (!anchor) return;

@@ -2,6 +2,14 @@
  * serviceWorker.ts
  * PhishScope+ MV3 background service worker.
  *
+ * Privacy model (per-request):
+ *  1. On-device heuristic runs first — no data leaves the browser.
+ *  2. Only URLs that score medium or high locally are forwarded to the backend.
+ *  3. Before forwarding, query strings and fragments are stripped so personal
+ *     data embedded in URLs (tokens, search terms) never reach the server.
+ *  4. Backend analysis is logged to scan history ONLY for user-initiated scans
+ *     (popup "Scan URL" button). Auto-triggered background scans set log:false.
+ *
  * Caching strategy (two layers):
  *  - tabCache  (Map<tabId, FullAnalysis>) — for auto-scanned tabs
  *  - urlCache  (Map<url,   FullAnalysis>) — for manually scanned URLs and
@@ -11,8 +19,6 @@
  *  When multiple callers request the same URL while it is in-flight,
  *  their sendResponse callbacks are collected in `waiters`. When the
  *  analysis completes all waiters are resolved at once.
- *  This fixes the bug where GET_CACHED_BY_URL polling and the original
- *  ANALYSE_URL sendResponse both need the same result.
  */
 
 import type {
@@ -24,6 +30,7 @@ import type {
   MessageResponse,
 } from '../types/api';
 import { BACKEND } from '../config';
+import { analyseUrlLocally } from '../detection/heuristic';
 
 /** Per-tab cache: tabId → FullAnalysis. */
 const tabCache = new Map<number, FullAnalysis>();
@@ -45,6 +52,18 @@ const waiters = new Map<string, Array<(r: MessageResponse) => void>>();
 
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
+/** Strip query string and fragment before sending a URL to the backend. */
+function sanitizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    u.hash = '';
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 async function postJSON<T>(endpoint: string, body: object): Promise<T> {
   const res = await fetch(`${BACKEND}${endpoint}`, {
     method: 'POST',
@@ -58,7 +77,12 @@ async function postJSON<T>(endpoint: string, body: object): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-async function runFullAnalysis(url: string): Promise<FullAnalysis> {
+/**
+ * @param log - true for user-initiated scans (consent implied); false for
+ *              automatic background scans. Controls whether the result is
+ *              persisted to scan history on the backend.
+ */
+async function runFullAnalysis(url: string, log: boolean): Promise<FullAnalysis> {
   const [heuristic, sandbox] = await Promise.all([
     postJSON<AnalyseUrlResponse>('/analyse-url', { url }),
     postJSON<SandboxPreviewResponse>('/sandbox-preview', { url }),
@@ -67,6 +91,7 @@ async function runFullAnalysis(url: string): Promise<FullAnalysis> {
     url,
     heuristicResult: heuristic,
     sandboxResult:   sandbox,
+    log,
   });
   return { url, heuristic, sandbox, summary };
 }
@@ -91,12 +116,12 @@ function rejectAnalysis(url: string, err: unknown): void {
 
 /**
  * Register a callback and start analysis if not already running.
- * If analysis is already in-flight the callback is queued with existing waiters.
  *
- * @param url - URL to analyse.
+ * @param url - URL to analyse (should already be sanitized for auto-scans).
+ * @param log - Whether to persist the result to scan history.
  * @param cb  - Optional sendResponse / waiter to call when done.
  */
-function startOrJoin(url: string, cb?: (r: MessageResponse) => void): void {
+function startOrJoin(url: string, log: boolean, cb?: (r: MessageResponse) => void): void {
   if (cb) {
     const arr = waiters.get(url) ?? [];
     arr.push(cb);
@@ -104,7 +129,7 @@ function startOrJoin(url: string, cb?: (r: MessageResponse) => void): void {
   }
   if (!inFlight.has(url)) {
     inFlight.add(url);
-    runFullAnalysis(url)
+    runFullAnalysis(url, log)
       .then(result => resolveAnalysis(url, result))
       .catch(err   => rejectAnalysis(url, err));
   }
@@ -143,7 +168,7 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
-    // ANALYSE_URL — popup "Scan URL" button
+    // ANALYSE_URL — popup "Scan URL" button (user-initiated: log = true)
     if (message.type === 'ANALYSE_URL') {
       const { url } = message;
 
@@ -154,8 +179,8 @@ chrome.runtime.onMessage.addListener(
         return false;
       }
 
-      // Register as a waiter and start/join analysis
-      startOrJoin(url, sendResponse);
+      // User explicitly requested a scan — consent implied, always log
+      startOrJoin(url, true, sendResponse);
       return true; // Keep channel open until sendResponse is called
     }
 
@@ -196,26 +221,31 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = tab.url ?? '';
   if (!url.startsWith('http://') && !url.startsWith('https://')) return;
 
-  // Loading phase: fast heuristic interception
+  // Loading phase: fast on-device interception before page renders
   if (changeInfo.status === 'loading') {
     if (acknowledged.has(url)) return;
 
-    // Cached result for this tab — redirect immediately without a backend call
+    // Cached result for this tab — redirect immediately without any network call
     const byTab = tabCache.get(tabId);
     if (byTab && byTab.url === url && isRisky(byTab.heuristic.riskLevel)) {
       redirectToWarning(tabId, url, byTab.heuristic);
       return;
     }
 
-    // URL cache hit — same protection, no backend call needed
-    const byUrl = urlCache.get(url);
+    // URL cache hit — same protection, no network call needed
+    const byUrl = urlCache.get(sanitizeUrl(url));
     if (byUrl && isRisky(byUrl.heuristic.riskLevel)) {
       redirectToWarning(tabId, url, byUrl.heuristic);
       return;
     }
 
-    // Fast heuristic check — never blocks on failure
-    postJSON<AnalyseUrlResponse>('/analyse-url', { url })
+    // On-device heuristic — runs instantly, URL never leaves browser for low risk
+    const localResult = analyseUrlLocally(url);
+    if (!isRisky(localResult.riskLevel)) return;
+
+    // Medium/high locally: escalate to backend with sanitized URL (no query params)
+    const sanitized = sanitizeUrl(url);
+    postJSON<AnalyseUrlResponse>('/analyse-url', { url: sanitized })
       .then(heuristic => {
         if (acknowledged.has(url) || !isRisky(heuristic.riskLevel)) return;
         chrome.tabs.get(tabId, currentTab => {
@@ -230,17 +260,23 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     return;
   }
 
-  // Complete phase: full background analysis
+  // Complete phase: full background analysis for medium/high-risk pages
   if (changeInfo.status === 'complete') {
-    // URL already cached — just associate this tabId
-    const existing = urlCache.get(url);
+    const sanitized = sanitizeUrl(url);
+
+    // Already cached under the sanitized URL — associate with this tab
+    const existing = urlCache.get(sanitized);
     if (existing) {
       tabCache.set(tabId, existing);
       return;
     }
 
-    // Start or join analysis; cache by tabId when done
-    startOrJoin(url, (r) => {
+    // On-device pre-screen: skip full analysis for low-risk URLs entirely
+    const localResult = analyseUrlLocally(url);
+    if (!isRisky(localResult.riskLevel)) return;
+
+    // Medium/high: run full pipeline with sanitized URL; log:false (no user consent for auto-scan)
+    startOrJoin(sanitized, false, (r) => {
       if (r.type === 'ANALYSIS_RESULT') tabCache.set(tabId, r.data);
     });
   }
