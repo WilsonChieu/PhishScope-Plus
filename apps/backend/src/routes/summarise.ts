@@ -86,7 +86,7 @@ router.post('/', async (req: Request, res: Response) => {
         url,
         domain:               heuristic.domain,
         risk_score:           heuristic.riskScore,
-        risk_level:           heuristic.riskLevel,
+        risk_level:           result.overallRisk,
         factors:              JSON.stringify(heuristic.factors),
         page_title:           sandbox.pageTitle,
         has_password_field:   sandbox.hasPasswordField   ? 1 : 0,

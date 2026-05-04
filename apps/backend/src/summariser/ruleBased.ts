@@ -187,7 +187,10 @@ function buildSummary(
     if (sandbox.hasCreditCardField) {
       return `This URL requests payment or credit card information${sandboxEscalated ? ' on a site with suspicious characteristics' : ' and exhibits multiple high-risk characteristics'}. Do not enter any financial details.`;
     }
-    return `This URL exhibits multiple high-risk characteristics (${factors.length} risk factor${factors.length !== 1 ? 's' : ''} detected). Exercise extreme caution and avoid entering any personal information.`;
+    if (sandboxEscalated && factors.length === 0) {
+      return `The page was found to contain suspicious elements (such as credential or payment fields) that raise the risk level. Verify this is the intended site before entering any information.`;
+    }
+    return `This URL exhibits ${factors.length} high-risk characteristic${factors.length !== 1 ? 's' : ''}. Exercise extreme caution and avoid entering any personal information.`;
   }
 
   if (overallRisk === 'medium') {
