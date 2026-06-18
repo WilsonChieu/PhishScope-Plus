@@ -1,4 +1,3 @@
-```markdown
 # PhishScope+
 
 A Chrome browser extension that detects phishing URLs through a multi-layered approach combining on-device heuristic analysis, headless browser sandboxing, and Google Safe Browsing threat intelligence — built as a Final Year Project (TP067323).
@@ -179,9 +178,6 @@ User navigates to URL
 - No user tracking, analytics, or telemetry of any kind
 
 ---
-
-## License
-
 MIT
 
 ---
