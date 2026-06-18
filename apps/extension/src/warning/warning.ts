@@ -51,7 +51,7 @@ const risk      = (params.get('risk') ?? 'high') as 'high' | 'medium';
 const score     = parseInt(params.get('score') ?? '0', 10);
 
 /** List of triggered heuristic factor keys (e.g. ['no_https', 'suspicious_tld']). */
-const factors   = (params.get('factors') ?? '').split(',').filter(Boolean);
+const factors   = [...new Set((params.get('factors') ?? '').split(',').filter(Boolean))];
 
 // ── Populate UI ───────────────────────────────────────────────────────────────
 
